@@ -1,6 +1,8 @@
 #![feature(abi_thiscall)]
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
+mod console;
+
 use once_cell::sync::Lazy;
 use retour::GenericDetour;
 
@@ -26,6 +28,8 @@ static hook_sub_46B840: Lazy<GenericDetour<def_sub_46B840>> = Lazy::new(|| {
 fn init_extension() {
     // enable console
     unsafe { *std::mem::transmute::<u32, *mut u32>(0xC4EC20) = 1 };
+
+    console::console_write("wow112_extension loaded!", console::ConsoleColor::Warning);
 }
 
 unsafe extern "thiscall" fn sub_46B840(a1: u32) -> u32 {
