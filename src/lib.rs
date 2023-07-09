@@ -13,6 +13,8 @@ use windows::Win32::{
     System::SystemServices::DLL_PROCESS_ATTACH,
 };
 
+// extern crate wow_mem;
+
 macro_rules! ptr {
     ($address:expr, $type:ty) => {
         *($address as *mut $type)
@@ -48,6 +50,7 @@ static hook_sub_46B840: Lazy<GenericDetour<def_sub_46B840>> = Lazy::new(|| unsaf
     .unwrap()
 });
 
+// #[detour_fn(0x0046B840)]
 unsafe extern "thiscall" fn sub_46B840(a1: u32) -> u32 {
     init_extension();
 
