@@ -1,12 +1,7 @@
 #![allow(dead_code)]
 
 use std::ffi::{c_char, CString};
-
-macro_rules! hook_fn {
-    ($type:ty, $address:expr) => {
-        unsafe { std::mem::transmute::<u32, $type>($address) }
-    };
-}
+use wow_mem::hook_fn;
 
 #[repr(u32)]
 pub enum CommandCategory {
@@ -37,12 +32,17 @@ pub enum ConsoleColor {
 pub type ConsoleCommandHandler =
     extern "fastcall" fn(cmd: *const c_char, args: *const c_char) -> u32;
 
-type def_ConsoleCommandRegister = extern "fastcall" fn(
+#[hook_fn(0x0063F9E0)]
+extern "fastcall" fn ConsoleCommandRegister(
     cmd: *const c_char,
     handler: ConsoleCommandHandler,
     category: CommandCategory,
     help: *const c_char,
-) -> u32;
+) -> u32 {
+}
+
+#[hook_fn(0x0063CB50)]
+extern "fastcall" fn ConsoleWriteRaw(text: *const c_char, color: ConsoleColor) {}
 
 // TODO: think of a clever way to wrap the handler so we can use rust types there
 // FIXME: WoW seems to expect static strings here. I'm sure there's a not-stupid solution,
@@ -53,18 +53,13 @@ pub fn console_command_register(
     category: CommandCategory,
     help: &str,
 ) -> u32 {
-    let func = hook_fn!(def_ConsoleCommandRegister, 0x0063F9E0);
     let c_cmd = CString::new(cmd).unwrap();
     let c_help = CString::new(help).unwrap();
 
-    return func(c_cmd.into_raw(), handler, category, c_help.into_raw());
+    return ConsoleCommandRegister(c_cmd.into_raw(), handler, category, c_help.into_raw());
 }
 
-type def_ConsoleWriteRaw = extern "fastcall" fn(*const c_char, ConsoleColor);
-
 pub fn console_write(text: &str, color: ConsoleColor) {
-    let func = hook_fn!(def_ConsoleWriteRaw, 0x0063CB50);
     let str = CString::new(text).unwrap();
-
-    func(str.as_ptr(), color);
+    ConsoleWriteRaw(str.as_ptr(), color);
 }

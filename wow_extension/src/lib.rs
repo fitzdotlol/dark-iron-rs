@@ -3,9 +3,6 @@
 
 mod console;
 
-use once_cell::sync::Lazy;
-use retour::GenericDetour;
-
 use std::{ffi::c_char, os::raw::c_void};
 
 use windows::Win32::{
