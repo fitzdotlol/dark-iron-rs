@@ -3,6 +3,12 @@
 use std::ffi::{c_char, CString};
 use wow_mem::hook_fn;
 
+macro_rules! ptr {
+    ($address:expr, $type:ty) => {
+        *($address as *mut $type)
+    };
+}
+
 #[repr(u32)]
 pub enum CommandCategory {
     Debug = 0x0,
@@ -62,4 +68,9 @@ pub fn console_command_register(
 pub fn console_write(text: &str, color: ConsoleColor) {
     let str = CString::new(text).unwrap();
     ConsoleWriteRaw(str.as_ptr(), color);
+}
+
+pub fn init() {
+    // enable console
+    unsafe { ptr!(0x00C4EC20, u32) = 1 };
 }

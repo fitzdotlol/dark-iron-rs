@@ -2,6 +2,7 @@
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 mod console;
+mod script;
 
 use std::{ffi::c_char, os::raw::c_void};
 
@@ -18,6 +19,7 @@ macro_rules! ptr {
     };
 }
 
+
 extern "fastcall" fn cmd_test(_cmd: *const c_char, _args: *const c_char) -> u32 {
     console::console_write("this is only a test", console::ConsoleColor::Error);
     return 0;
@@ -25,9 +27,6 @@ extern "fastcall" fn cmd_test(_cmd: *const c_char, _args: *const c_char) -> u32 
 
 fn init_extension() {
     unsafe {
-        // enable console
-        ptr!(0x00C4EC20, u32) = 1;
-
         // Fix InvalidPtrCheck for callbacks outside of .text section
         ptr!(0x00884800, u32) = 0x00000001;
         ptr!(0x00884C00, u32) = 0x7FFFFFFF;
@@ -35,14 +34,17 @@ fn init_extension() {
 
     console::console_write("wow112_extension loaded!", console::ConsoleColor::Warning);
     console::console_command_register("test", cmd_test, console::CommandCategory::Debug, "uhhh");
+
+    script::init();
+    console::init();
 }
 
 #[detour_fn(0x0046B840)]
-unsafe extern "thiscall" fn sub_46B840(a1: u32) -> u32 {
+unsafe extern "thiscall" fn sub_46B840(a1: u32) {
     init_extension();
 
     hook_sub_46B840.disable().unwrap();
-    return hook_sub_46B840.call(a1);
+    hook_sub_46B840.call(a1);
 }
 
 static mut ExtensionLoaded: bool = false;
