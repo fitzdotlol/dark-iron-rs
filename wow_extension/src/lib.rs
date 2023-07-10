@@ -3,6 +3,7 @@
 
 mod console;
 mod script;
+mod graphics;
 
 use std::{ffi::c_char, os::raw::c_void};
 
@@ -37,6 +38,7 @@ fn init_extension() {
 
     script::init();
     console::init();
+    graphics::init();
 }
 
 #[detour_fn(0x0046B840)]
