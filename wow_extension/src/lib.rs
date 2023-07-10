@@ -13,7 +13,7 @@ use windows::Win32::{
     System::SystemServices::DLL_PROCESS_ATTACH,
 };
 
-// extern crate wow_mem;
+use wow_mem::detour_fn;
 
 macro_rules! ptr {
     ($address:expr, $type:ty) => {
@@ -40,17 +40,7 @@ fn init_extension() {
     console::console_command_register("test", cmd_test, console::CommandCategory::Debug, "uhhh");
 }
 
-type def_sub_46B840 = unsafe extern "thiscall" fn(u32) -> u32;
-
-static hook_sub_46B840: Lazy<GenericDetour<def_sub_46B840>> = Lazy::new(|| unsafe {
-    GenericDetour::new(
-        std::mem::transmute::<u32, def_sub_46B840>(0x0046B840),
-        sub_46B840,
-    )
-    .unwrap()
-});
-
-// #[detour_fn(0x0046B840)]
+#[detour_fn(0x0046B840)]
 unsafe extern "thiscall" fn sub_46B840(a1: u32) -> u32 {
     init_extension();
 
