@@ -23,6 +23,7 @@ macro_rules! ptr {
 
 extern "fastcall" fn cmd_test(_cmd: *const c_char, _args: *const c_char) -> u32 {
     console::console_write("this is only a test", console::ConsoleColor::Error);
+    graphics::init();
     return 0;
 }
 
@@ -38,7 +39,6 @@ fn init_extension() {
 
     script::init();
     console::init();
-    graphics::init();
 }
 
 #[detour_fn(0x0046B840)]
