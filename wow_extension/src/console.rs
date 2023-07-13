@@ -1,13 +1,8 @@
 #![allow(dead_code)]
 
 use std::ffi::{c_char, CString};
+use crate::mem;
 use wow_mem::hook_fn;
-
-macro_rules! ptr {
-    ($address:expr, $type:ty) => {
-        *($address as *mut $type)
-    };
-}
 
 #[repr(u32)]
 pub enum CommandCategory {
@@ -57,12 +52,16 @@ pub fn console_command_register(
     cmd: &str,
     handler: ConsoleCommandHandler,
     category: CommandCategory,
-    help: &str,
+    help: Option<&str>,
 ) -> u32 {
-    let c_cmd = CString::new(cmd).unwrap();
-    let c_help = CString::new(help).unwrap();
+    let cmd_ptr = CString::new(cmd).unwrap().into_raw();
 
-    return ConsoleCommandRegister(c_cmd.into_raw(), handler, category, c_help.into_raw());
+    let help_ptr = match help {
+        Some(help) => CString::new(help).unwrap().into_raw(),
+        None => std::ptr::null_mut(),
+    };
+
+    return ConsoleCommandRegister(cmd_ptr, handler, category, help_ptr);
 }
 
 pub fn console_write(text: &str, color: ConsoleColor) {
@@ -72,5 +71,5 @@ pub fn console_write(text: &str, color: ConsoleColor) {
 
 pub fn init() {
     // enable console
-    unsafe { ptr!(0x00C4EC20, u32) = 1 };
+    unsafe { mem::set(0x00C4EC20, 1u32) };
 }

@@ -1,13 +1,12 @@
-#![feature(abi_thiscall)]
+#![feature(abi_thiscall, slice_flatten)]
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
 mod console;
-mod script;
 mod graphics;
+mod script;
 
 use std::ffi::{c_char, c_void};
 
-use winapi::um::winnt::RtlCopyMemory;
 use windows::Win32::{
     Foundation::{BOOL, HANDLE},
     System::SystemServices::DLL_PROCESS_ATTACH,
@@ -15,12 +14,15 @@ use windows::Win32::{
 
 use wow_mem::detour_fn;
 
-macro_rules! ptr {
-    ($address:expr, $type:ty) => {
-        *($address as *mut $type)
-    };
-}
+pub mod mem {
+    pub unsafe fn ptr<T>(addr: u32) -> *mut T {
+        addr as *mut T
+    }
 
+    pub unsafe fn set<T>(addr: u32, value: T) {
+        *(addr as *mut T) = value
+    }
+}
 
 extern "fastcall" fn cmd_test(_cmd: *const c_char, _args: *const c_char) -> u32 {
     console::console_write("this is only a test", console::ConsoleColor::Error);
@@ -31,12 +33,12 @@ extern "fastcall" fn cmd_test(_cmd: *const c_char, _args: *const c_char) -> u32 
 fn init_extension() {
     unsafe {
         // Fix InvalidPtrCheck for callbacks outside of .text section
-        ptr!(0x00884800, u32) = 0x00000001;
-        ptr!(0x00884C00, u32) = 0x7FFFFFFF;
+        mem::set(0x00884800, 0x00000001u32);
+        mem::set(0x00884C00, 0x7FFFFFFFu32);
     }
 
     console::console_write("wow112_extension loaded!", console::ConsoleColor::Warning);
-    console::console_command_register("test", cmd_test, console::CommandCategory::Debug, "uhhh");
+    console::console_command_register("test", cmd_test, console::CommandCategory::Debug, None);
 
     script::init();
     console::init();
