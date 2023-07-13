@@ -4,6 +4,7 @@
 mod console;
 mod graphics;
 mod script;
+mod math;
 
 use std::ffi::{c_char, c_void};
 
