@@ -13,7 +13,7 @@ use windows::Win32::{
     System::SystemServices::DLL_PROCESS_ATTACH,
 };
 
-use wow_mem::detour_fn;
+use darkiron_macro::detour_fn;
 
 pub mod mem {
     pub unsafe fn ptr<T>(addr: u32) -> *mut T {
@@ -38,7 +38,7 @@ fn init_extension() {
         mem::set(0x00884C00, 0x7FFFFFFFu32);
     }
 
-    console::console_write("wow112_extension loaded!", console::ConsoleColor::Warning);
+    console::console_write("Dark Iron extension loaded!", console::ConsoleColor::Warning);
     console::console_command_register("test", cmd_test, console::CommandCategory::Debug, None);
 
     script::init();

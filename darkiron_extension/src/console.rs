@@ -2,7 +2,7 @@
 
 use std::ffi::{c_char, CString};
 use crate::mem;
-use wow_mem::hook_fn;
+use darkiron_macro::hook_fn;
 
 #[repr(u32)]
 pub enum CommandCategory {

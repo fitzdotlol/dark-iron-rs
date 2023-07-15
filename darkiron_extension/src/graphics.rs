@@ -11,7 +11,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ICON_SMALL, WM_SETICON, WS_CAPTION, WS_EX_LEFT, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_OVERLAPPED,
     WS_SYSMENU, WS_THICKFRAME,
 };
-use wow_mem::detour_fn;
+use darkiron_macro::detour_fn;
 
 use crate::console::console_write;
 use crate::math::{Matrix4, RectI};

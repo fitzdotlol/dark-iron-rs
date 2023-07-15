@@ -1,10 +1,10 @@
 [package]
-name = "wow112_extension"
+name = "darkiron_extension"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-wow_mem = { path = "../wow_mem" }
+darkiron_macro = { path = "../darkiron_macro" }
 once_cell = "1.18.0"
 retour = { version = "0.3", features = ["thiscall-abi"] }
 imgui = "0.10.0"
@@ -22,4 +22,5 @@ windows = { version = "0.48.0", features = [
 image = "0.24.6"
 
 [lib]
+name = "extension"
 crate-type = ["cdylib"]

@@ -1,6 +1,6 @@
 use std::ffi::{c_char, c_void};
 
-use wow_mem::detour_fn;
+use darkiron_macro::detour_fn;
 
 //int __fastcall FrameScript::Register(const char *name, int a2)
 #[detour_fn(0x00704120)]

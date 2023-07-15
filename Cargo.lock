@@ -127,6 +127,27 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
+name = "darkiron_extension"
+version = "0.1.0"
+dependencies = [
+ "darkiron_macro",
+ "image",
+ "imgui",
+ "once_cell",
+ "retour",
+ "winapi",
+ "windows",
+]
+
+[[package]]
+name = "darkiron_macro"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "either"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -807,27 +828,6 @@ name = "windows_x86_64_msvc"
 version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1a515f5799fe4961cb532f983ce2b23082366b898e52ffbce459c86f67c8378a"
-
-[[package]]
-name = "wow112_extension"
-version = "0.1.0"
-dependencies = [
- "image",
- "imgui",
- "once_cell",
- "retour",
- "winapi",
- "windows",
- "wow_mem",
-]
-
-[[package]]
-name = "wow_mem"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
-]
 
 [[package]]
 name = "zune-inflate"

@@ -1,5 +1,5 @@
 [workspace]
 members = [
-    "wow_mem",
-    "wow_extension",
+    "darkiron_macro",
+    "darkiron_extension",
 ]
