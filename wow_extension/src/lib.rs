@@ -43,7 +43,6 @@ fn init_extension() {
 
     script::init();
     console::init();
-    graphics::init();
 }
 
 #[detour_fn(0x0046B840)]
@@ -59,6 +58,7 @@ static mut ExtensionLoaded: bool = false;
 #[no_mangle]
 unsafe extern "system" fn DllMain(_hinst: HANDLE, reason: u32, _reserved: *mut c_void) -> BOOL {
     if reason == DLL_PROCESS_ATTACH && !ExtensionLoaded {
+        graphics::init();
         hook_sub_46B840.enable().unwrap();
         ExtensionLoaded = true;
     }
