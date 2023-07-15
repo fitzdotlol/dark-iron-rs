@@ -8,16 +8,16 @@ mod graphics;
 mod math;
 mod script;
 
-use std::ffi::{c_char, c_void, CStr, CString};
+use std::ffi::{c_char, c_void, CString};
 
 use config::CONFIG;
-use console::console_write;
+
 use windows::Win32::{
     Foundation::{BOOL, HANDLE},
     System::SystemServices::DLL_PROCESS_ATTACH,
 };
 
-use darkiron_macro::detour_fn;
+use darkiron_macro::{detour_fn, hook_fn};
 
 pub mod mem {
     pub unsafe fn ptr<T>(addr: u32) -> *mut T {
@@ -57,30 +57,22 @@ unsafe extern "thiscall" fn sub_46B840(a1: u32) {
     hook_sub_46B840.call(a1);
 }
 
+// char __fastcall sub_46A580(int a1, char *a2, unsigned int a3, char a4, int a5)
+type HTTPCallback = extern "fastcall" fn(u32, *const c_char, length: u32, u32, u32) -> u32;
 
-// const CHAR *__fastcall sub_703BF0(const char *varName, signed int a2, signed int a3)
-#[detour_fn(0x00703BF0)]
-unsafe extern "fastcall" fn sub_703BF0(var_name: *const c_char, a2: u32, a3: u32) -> *const i8 {
-    hook_sub_703BF0.disable().unwrap();
-    let ret = hook_sub_703BF0.call(var_name, a2, a3);
-    hook_sub_703BF0.enable().unwrap();
+#[hook_fn(0x007A6CC0)]
+extern "fastcall" fn sub_7A6CC0(url: *const c_char, callback: HTTPCallback, a3: u32, a4: u32) -> u32 {}
 
-    let cfg = &CONFIG;
-    if (&cfg.server_alert_url).is_none() {
-        return ret;
+#[detour_fn(0x007A6EE0)]
+unsafe extern "fastcall" fn httpGetRequest(_old_url: *const c_char, callback: HTTPCallback, a3: u32) -> u32 {
+    if CONFIG.server_alert_url.is_none() {
+        return 0;
     }
 
-    let var = CStr::from_ptr(var_name).to_str().unwrap();
+    let url = CONFIG.server_alert_url.as_ref().unwrap();
+    let url_cstring = CString::new(url.as_str()).unwrap();
 
-    // FIXME: this is a leak. kinda stupid but what can I do? (please tell me)
-    if var != "SERVER_ALERT_URL" {
-        return ret;
-    }
-
-    let new_url = cfg.server_alert_url.as_ref().unwrap();
-    let new_url = CString::new(new_url.as_str()).unwrap();
-
-    new_url.into_raw()
+    return sub_7A6CC0(url_cstring.as_ptr(), callback, a3, 5000);
 }
 
 static mut ExtensionLoaded: bool = false;
@@ -90,7 +82,7 @@ unsafe extern "system" fn DllMain(_hinst: HANDLE, reason: u32, _reserved: *mut c
     if reason == DLL_PROCESS_ATTACH && !ExtensionLoaded {
         graphics::init();
         hook_sub_46B840.enable().unwrap();
-        hook_sub_703BF0.enable().unwrap();
+        hook_httpGetRequest.enable().unwrap();
         ExtensionLoaded = true;
     }
 
