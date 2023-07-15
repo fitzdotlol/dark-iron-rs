@@ -1,11 +1,12 @@
 #![feature(abi_thiscall, slice_flatten)]
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
+mod config;
 mod console;
-mod graphics;
-mod script;
-mod math;
 mod gl;
+mod graphics;
+mod math;
+mod script;
 
 use std::ffi::{c_char, c_void};
 
@@ -39,11 +40,11 @@ fn init_extension() {
         mem::set(0x00884C00, 0x7FFFFFFFu32);
     }
 
-    console::console_write("Dark Iron extension loaded!", console::ConsoleColor::Admin);
-    console::console_command_register("test", cmd_test, console::CommandCategory::Debug, None);
-
     script::init();
     console::init();
+
+    console::console_write("Dark Iron extension loaded!", console::ConsoleColor::Admin);
+    console::console_command_register("test", cmd_test, console::CommandCategory::Debug, None);
 }
 
 #[detour_fn(0x0046B840)]
