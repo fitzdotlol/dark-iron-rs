@@ -1,22 +1,17 @@
-#![allow(dead_code, unused_imports)]
-use std::f32::consts::PI;
-use std::ffi::{c_char, c_void, CStr, CString};
-use std::mem::size_of;
-use image::EncodableLayout;
-use winapi::um::winnt::RtlCopyMemory;
+#![allow(dead_code)]
+use std::ffi::{c_char, c_void, CStr};
 
-use windows::core::{HSTRING, PCSTR};
-use windows::Win32::Foundation::HWND;
-use windows::Win32::Graphics::Gdi::{GetDC, HDC};
+use windows::core::PCSTR;
+use windows::Win32::Foundation::{BOOL, HWND, LPARAM, WPARAM};
+use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateCompatibleBitmap, GetDC, HDC};
 use windows::Win32::Graphics::OpenGL::*;
 use windows::Win32::System::LibraryLoader::GetModuleHandleA;
-use windows::Win32::UI::Shell::PropertiesSystem::{IPropertyStore, SHGetPropertyStoreForWindow};
-use windows::Win32::UI::Shell::{self, SetCurrentProcessExplicitAppUserModelID};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExA, CW_USEDEFAULT, HMENU, WINDOW_EX_STYLE, WS_CAPTION, WS_MAXIMIZEBOX,
-    WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_THICKFRAME,
+    CreateIconIndirect, CreateWindowExA, SendMessageA, CW_USEDEFAULT, HMENU, ICONINFO, ICON_BIG,
+    ICON_SMALL, WM_SETICON, WS_CAPTION, WS_EX_LEFT, WS_MAXIMIZEBOX, WS_MINIMIZEBOX, WS_OVERLAPPED,
+    WS_SYSMENU, WS_THICKFRAME,
 };
-use wow_mem::{detour_fn, hook_fn};
+use wow_mem::detour_fn;
 
 use crate::console::console_write;
 use crate::math::{Matrix4, RectI};
@@ -199,39 +194,56 @@ static mut UI_WINDOW: HWND = HWND { 0: 0 };
 static mut UI_DC: HDC = HDC { 0: 0 };
 static mut UI_CTX: HGLRC = HGLRC { 0: 0 };
 
+unsafe fn set_window_icon(hwnd: HWND) {
+    let img = image::io::Reader::open("icon.png")
+        .unwrap()
+        .decode()
+        .unwrap();
+    let pixels = img.clone().into_rgba8().as_ptr() as *const c_void;
+
+    let hbmColor = CreateBitmap(img.width() as i32, img.height() as i32, 1, 32, Some(pixels));
+    let hbmMask = CreateCompatibleBitmap(UI_DC, img.width() as i32, img.height() as i32);
+
+    let icon_info = ICONINFO {
+        fIcon: BOOL::from(true),
+        xHotspot: 0,
+        yHotspot: 0,
+        hbmMask,
+        hbmColor,
+    };
+
+    let icon = CreateIconIndirect(&icon_info).unwrap();
+    let lp = LPARAM(icon.0);
+
+    SendMessageA(hwnd, WM_SETICON, WPARAM(ICON_BIG as usize), lp);
+    SendMessageA(hwnd, WM_SETICON, WPARAM(ICON_SMALL as usize), lp);
+}
+
 // HWND __fastcall z_recreateOpenglWindow(void *a1, _DWORD *a2)
 #[detour_fn(0x0058CF10)]
 unsafe extern "fastcall" fn z_recreateOpenglWindow(
     this_addr: u32,
     win: *const CGxOpenGlWindow,
 ) -> HWND {
-    let hwndparent = HWND { 0: 0 };
-    let hmenu = HMENU { 0: 0 };
-    let f = PCSTR {
-        0: std::ptr::null(),
-    };
-    let hinstance = GetModuleHandleA(f).unwrap();
+    let hinstance = GetModuleHandleA(PCSTR(std::ptr::null())).unwrap();
 
     let class_name = "GxWindowClassOpenGl\0";
-    let win_name = "Planes of Warcraft\0";
+    let win_name = "Dark Iron WoW\0";
 
     let this: *const c_void = std::mem::transmute(this_addr);
 
     let hwnd = CreateWindowExA(
-        WINDOW_EX_STYLE { 0: 0x40000 },
-        PCSTR {
-            0: class_name.as_ptr(),
-        },
-        PCSTR {
-            0: win_name.as_ptr(),
-        },
+        WS_EX_LEFT,
+        // WS_EX_APPWINDOW,
+        PCSTR(class_name.as_ptr()),
+        PCSTR(win_name.as_ptr()),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         (*win).width,
         (*win).height,
-        hwndparent,
-        hmenu,
+        HWND(0),
+        HMENU(0),
         hinstance,
         Some(this),
     );
@@ -239,7 +251,9 @@ unsafe extern "fastcall" fn z_recreateOpenglWindow(
     UI_WINDOW = hwnd;
     UI_DC = GetDC(hwnd);
 
-    // const app_user_model_id: &'static str = "PlanesOfWarcraft";
+    set_window_icon(hwnd);
+
+    // const app_user_model_id: &'static str = "DarkIronWoW";
     // let str = HSTRING::from(app_user_model_id);
     // _ = SetCurrentProcessExplicitAppUserModelID(&str);
     // let mut store: *mut IPropertyStore = std::ptr::null_mut();
@@ -353,7 +367,7 @@ unsafe fn draw_ui() {
     let bottom = dim;
 
     glBindTexture(GL_TEXTURE_2D, UI_TEX);
-    glColor3ub(0xFF,0xFF, 0xFF);
+    glColor3ub(0xFF, 0xFF, 0xFF);
 
     UI_ROT += 1.0;
 
