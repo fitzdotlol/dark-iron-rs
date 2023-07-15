@@ -453,6 +453,14 @@ pub fn toggle() {
 
 pub fn init() {
     unsafe {
+        // disable direct3d lol
+        // TODO: find a less-idiotic way of doing this
+        let src = "OpenGL\0";
+        let dst_1 = crate::mem::ptr::<u8>(0x0080E138);
+        let dst_2 = crate::mem::ptr::<u8>(0x00864F7C);
+        std::ptr::copy(src.as_ptr() as *mut u8, dst_1, src.len());
+        std::ptr::copy(src.as_ptr() as *mut u8, dst_2, src.len());
+
         hook_sub_59BA10.enable().unwrap();
         hook_z_recreateOpenglWindow.enable().unwrap();
         hook_sub_435A50.enable().unwrap();
