@@ -21,6 +21,7 @@ pub const DSDT8_NV: u32 = 0x8709;
 pub const TEXTURE_CUBE_MAP: u32 = 0x8513;
 pub const TEXTURE_RECTANGLE: u32 = 0x84F5;
 pub const ARRAY_BUFFER: u32 = 0x8892;
+pub const ELEMENT_ARRAY_BUFFER: u32 = 0x8893;
 pub const STATIC_DRAW: u32 = 0x88E4;
 pub const TEXTURE_2D: u32 = 0xDE1;
 

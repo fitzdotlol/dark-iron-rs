@@ -16,9 +16,8 @@ use darkiron_macro::detour_fn;
 
 use crate::config::CONFIG;
 use crate::console::console_write;
-use crate::math::{Matrix4, RectI};
 use crate::gl;
-
+use crate::math::{Matrix4, RectI};
 
 // #[detour_fn(0x00482D70)]
 // unsafe extern "thiscall" fn CGWorldFrame__RenderWorld(this: *const c_void) {
@@ -46,6 +45,7 @@ use crate::gl;
 fn create_orthographic_projection(near: f32, far: f32) -> Matrix4 {
     let mut projection = Matrix4 { m: [[0.0; 4]; 4] };
 
+    // window rect
     let r = unsafe { &*std::mem::transmute::<u32, *const RectI>(0x00884E20) };
 
     let left = r.x1 as f32;
@@ -185,14 +185,12 @@ static mut UI_CTX: HGLRC = HGLRC(0);
 static mut UI_TEX: u32 = 0;
 static mut UI_ROT: f32 = 0.0;
 
-unsafe fn set_window_icon(hwnd: HWND) {
-    let cfg = CONFIG.clone();
-
-    if cfg.icon.is_none() {
+fn set_window_icon(hwnd: HWND) {
+    if CONFIG.icon.is_none() {
         return;
     }
 
-    let icon_path = cfg.icon.unwrap();
+    let icon_path = CONFIG.icon.as_ref().unwrap();
 
     let img = image::io::Reader::open(icon_path)
         .unwrap()
@@ -200,8 +198,9 @@ unsafe fn set_window_icon(hwnd: HWND) {
         .unwrap();
     let pixels = img.clone().into_rgba8().as_ptr() as *const c_void;
 
-    let hbmColor = CreateBitmap(img.width() as i32, img.height() as i32, 1, 32, Some(pixels));
-    let hbmMask = CreateCompatibleBitmap(UI_DC, img.width() as i32, img.height() as i32);
+    let hbmColor =
+        unsafe { CreateBitmap(img.width() as i32, img.height() as i32, 1, 32, Some(pixels)) };
+    let hbmMask = unsafe { CreateCompatibleBitmap(UI_DC, img.width() as i32, img.height() as i32) };
 
     let icon_info = ICONINFO {
         fIcon: BOOL::from(true),
@@ -211,11 +210,13 @@ unsafe fn set_window_icon(hwnd: HWND) {
         hbmColor,
     };
 
-    let icon = CreateIconIndirect(&icon_info).unwrap();
+    let icon = unsafe { CreateIconIndirect(&icon_info).unwrap() };
     let lp = LPARAM(icon.0);
 
-    SendMessageA(hwnd, WM_SETICON, WPARAM(ICON_BIG as usize), lp);
-    SendMessageA(hwnd, WM_SETICON, WPARAM(ICON_SMALL as usize), lp);
+    unsafe {
+        SendMessageA(hwnd, WM_SETICON, WPARAM(ICON_BIG as usize), lp);
+        SendMessageA(hwnd, WM_SETICON, WPARAM(ICON_SMALL as usize), lp);
+    }
 }
 
 #[detour_fn(0x0058CF10)]
@@ -321,9 +322,15 @@ unsafe fn init_ui(dev_ptr: u32) {
         },
     ];
 
+    let indices: Vec<u32> = vec![0, 1, 2, 2, 3, 0];
+
     let vbo = gl::gen_buffer();
     gl::bind_buffer(gl::ARRAY_BUFFER, vbo);
-    gl::buffer_data::<Vertex>(gl::ARRAY_BUFFER, &verts, gl::STATIC_DRAW);
+    gl::buffer_data(gl::ARRAY_BUFFER, &verts, gl::STATIC_DRAW);
+
+    let ibo = gl::gen_buffer();
+    gl::bind_buffer(gl::ELEMENT_ARRAY_BUFFER, ibo);
+    gl::buffer_data(gl::ELEMENT_ARRAY_BUFFER, &indices, gl::STATIC_DRAW);
 
     UI_TEX = load_texture("logo.png");
 
@@ -382,7 +389,10 @@ unsafe fn draw_ui() {
         UI_ROT -= 360.0;
     }
 
-    glTranslatef(400.0, 300.0, 0.0);
+    // window rect
+    let r = unsafe { &*std::mem::transmute::<u32, *const RectI>(0x00884E20) };
+
+    glTranslatef(r.x2 as f32 / 2.0, r.y2 as f32 / 2.0, 0.0);
     glRotatef(UI_ROT, 0.0, 0.0, 1.0);
 
     glEnableClientState(GL_VERTEX_ARRAY);
@@ -399,7 +409,8 @@ unsafe fn draw_ui() {
         std::mem::size_of::<Vertex>() as i32,
         12 as *const c_void,
     );
-    gl::draw_arrays(GL_QUADS, 0, 4);
+
+    glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0 as *const c_void);
 
     glPopMatrix();
     glMatrixMode(GL_PROJECTION);
