@@ -4,15 +4,17 @@ use toml;
 
 use crate::console::console_write;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Config {
-    pub test: String,
+    pub title: Option<String>,
+    pub icon: Option<String>,
 }
 
 impl Default for Config {
     fn default() -> Self {
         Self {
-            test: String::from("default 'test'"),
+            title: None,
+            icon: None,
         }
     }
 }

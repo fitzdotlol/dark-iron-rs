@@ -1,8 +1,7 @@
 #![allow(dead_code)]
-use std::ffi::{c_char, c_void, CStr};
+use std::ffi::{c_char, c_void, CStr, CString};
 
 use darkiron_macro::detour_fn;
-use windows::core::PCSTR;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, WPARAM};
 use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateCompatibleBitmap, GetDC, HDC};
 use windows::Win32::Graphics::OpenGL::*;
@@ -12,7 +11,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ICON_SMALL, WM_SETICON, WS_CAPTION, WS_EX_APPWINDOW, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
     WS_OVERLAPPED, WS_SYSMENU, WS_THICKFRAME,
 };
+use windows::core::PCSTR;
 
+use crate::config::CONFIG;
 use crate::console::console_write;
 use crate::math::{Matrix4, RectI};
 
@@ -184,7 +185,15 @@ static mut UI_TEX: u32 = 0;
 static mut UI_ROT: f32 = 0.0;
 
 unsafe fn set_window_icon(hwnd: HWND) {
-    let img = image::io::Reader::open("icon.png")
+    let cfg = CONFIG.clone();
+
+    if cfg.icon.is_none() {
+        return;
+    }
+
+    let icon_path = cfg.icon.unwrap();
+
+    let img = image::io::Reader::open(icon_path)
         .unwrap()
         .decode()
         .unwrap();
@@ -210,20 +219,17 @@ unsafe fn set_window_icon(hwnd: HWND) {
 
 #[detour_fn(0x0058CF10)]
 unsafe extern "fastcall" fn z_recreateOpenglWindow(
-    this_addr: u32,
+    this: *const c_void,
     win: *const CGxOpenGlWindow,
 ) -> HWND {
     let hinstance = GetModuleHandleA(PCSTR(std::ptr::null())).unwrap();
 
     let class_name = "GxWindowClassOpenGl\0";
-    let win_name = "Dark Iron WoW\0";
-
-    let this: *const c_void = std::mem::transmute(this_addr);
 
     let hwnd = CreateWindowExA(
         WS_EX_APPWINDOW,
         PCSTR(class_name.as_ptr()),
-        PCSTR(win_name.as_ptr()),
+        PCSTR(std::ptr::null()),
         WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_MINIMIZEBOX | WS_MAXIMIZEBOX,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
@@ -239,17 +245,6 @@ unsafe extern "fastcall" fn z_recreateOpenglWindow(
     UI_DC = GetDC(hwnd);
 
     set_window_icon(hwnd);
-
-    // const app_user_model_id: &'static str = "DarkIronWoW";
-    // let str = HSTRING::from(app_user_model_id);
-    // _ = SetCurrentProcessExplicitAppUserModelID(&str);
-    // let mut store: *mut IPropertyStore = std::ptr::null_mut();
-    // let store_ptr = &mut store as *mut *mut IPropertyStore;
-    // let store_ptr2 = store_ptr as *mut *mut c_void;
-    // let guid = windows::core::GUID::new().unwrap();
-
-    // // IID_PPV_ARGS()
-    // _ = SHGetPropertyStoreForWindow(hwnd, &guid, store_ptr2);
 
     return hwnd;
 }
@@ -426,9 +421,17 @@ unsafe extern "thiscall" fn sub_59BA10(dev_ptr: u32, a2: u32) -> u32 {
 //int __fastcall sub_435A50(int a1, char *windowTitle)
 #[detour_fn(0x00435A50)]
 unsafe extern "fastcall" fn sub_435A50(a1: u32, _windowTitle: *const c_char) -> u32 {
-    let title: &'static str = "Dark Iron WoW\0";
+    let cfg = &CONFIG;
+
+    let win_name = match &cfg.title {
+        Some(s) => s.as_str(),
+        None => "World of Warcraft",
+    };
+
+    let win_name = CString::new(win_name).unwrap();
+
     hook_sub_435A50.disable().unwrap();
-    let ret = hook_sub_435A50.call(a1, title.as_ptr() as *const i8);
+    let ret = hook_sub_435A50.call(a1, win_name.as_ptr());
     hook_sub_435A50.enable().unwrap();
     return ret;
 }
