@@ -8,8 +8,10 @@ mod graphics;
 mod math;
 mod script;
 
-use std::ffi::{c_char, c_void};
+use std::ffi::{c_char, c_void, CStr, CString};
 
+use config::CONFIG;
+use console::console_write;
 use windows::Win32::{
     Foundation::{BOOL, HANDLE},
     System::SystemServices::DLL_PROCESS_ATTACH,
@@ -55,6 +57,32 @@ unsafe extern "thiscall" fn sub_46B840(a1: u32) {
     hook_sub_46B840.call(a1);
 }
 
+
+// const CHAR *__fastcall sub_703BF0(const char *varName, signed int a2, signed int a3)
+#[detour_fn(0x00703BF0)]
+unsafe extern "fastcall" fn sub_703BF0(var_name: *const c_char, a2: u32, a3: u32) -> *const i8 {
+    hook_sub_703BF0.disable().unwrap();
+    let ret = hook_sub_703BF0.call(var_name, a2, a3);
+    hook_sub_703BF0.enable().unwrap();
+
+    let cfg = &CONFIG;
+    if (&cfg.server_alert_url).is_none() {
+        return ret;
+    }
+
+    let var = CStr::from_ptr(var_name).to_str().unwrap();
+
+    // FIXME: this is a leak. kinda stupid but what can I do? (please tell me)
+    if var != "SERVER_ALERT_URL" {
+        return ret;
+    }
+
+    let new_url = cfg.server_alert_url.as_ref().unwrap();
+    let new_url = CString::new(new_url.as_str()).unwrap();
+
+    new_url.into_raw()
+}
+
 static mut ExtensionLoaded: bool = false;
 
 #[no_mangle]
@@ -62,6 +90,7 @@ unsafe extern "system" fn DllMain(_hinst: HANDLE, reason: u32, _reserved: *mut c
     if reason == DLL_PROCESS_ATTACH && !ExtensionLoaded {
         graphics::init();
         hook_sub_46B840.enable().unwrap();
+        hook_sub_703BF0.enable().unwrap();
         ExtensionLoaded = true;
     }
 

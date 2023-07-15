@@ -8,6 +8,7 @@ use crate::console::console_write;
 pub struct Config {
     pub title: Option<String>,
     pub icon: Option<String>,
+    pub server_alert_url: Option<String>,
 }
 
 impl Default for Config {
@@ -15,6 +16,7 @@ impl Default for Config {
         Self {
             title: None,
             icon: None,
+            server_alert_url: None,
         }
     }
 }
