@@ -5,6 +5,7 @@ mod console;
 mod graphics;
 mod script;
 mod math;
+mod gl;
 
 use std::ffi::{c_char, c_void};
 
@@ -26,7 +27,7 @@ pub mod mem {
 }
 
 extern "fastcall" fn cmd_test(_cmd: *const c_char, _args: *const c_char) -> u32 {
-    console::console_write("this is only a test", console::ConsoleColor::Error);
+    console::console_write("this is only a test", console::ConsoleColor::Warning);
     graphics::toggle();
     return 0;
 }
@@ -38,7 +39,7 @@ fn init_extension() {
         mem::set(0x00884C00, 0x7FFFFFFFu32);
     }
 
-    console::console_write("Dark Iron extension loaded!", console::ConsoleColor::Warning);
+    console::console_write("Dark Iron extension loaded!", console::ConsoleColor::Admin);
     console::console_command_register("test", cmd_test, console::CommandCategory::Debug, None);
 
     script::init();
