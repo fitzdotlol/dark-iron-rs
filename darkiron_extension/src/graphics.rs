@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 use std::ffi::{c_char, c_void, CStr, CString};
 
-use darkiron_macro::detour_fn;
+use windows::core::PCSTR;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, WPARAM};
 use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateCompatibleBitmap, GetDC, HDC};
 use windows::Win32::Graphics::OpenGL::*;
@@ -11,13 +11,14 @@ use windows::Win32::UI::WindowsAndMessaging::{
     ICON_SMALL, WM_SETICON, WS_CAPTION, WS_EX_APPWINDOW, WS_MAXIMIZEBOX, WS_MINIMIZEBOX,
     WS_OVERLAPPED, WS_SYSMENU, WS_THICKFRAME,
 };
-use windows::core::PCSTR;
+
+use darkiron_macro::detour_fn;
 
 use crate::config::CONFIG;
 use crate::console::console_write;
 use crate::math::{Matrix4, RectI};
-
 use crate::gl;
+
 
 // #[detour_fn(0x00482D70)]
 // unsafe extern "thiscall" fn CGWorldFrame__RenderWorld(this: *const c_void) {
@@ -249,15 +250,19 @@ unsafe extern "fastcall" fn z_recreateOpenglWindow(
     return hwnd;
 }
 
-unsafe fn gl_check_error() {
-    let err_code = glGetError();
+fn gl_check_error() {
+    let err_code = unsafe { glGetError() };
 
     if err_code == 0 {
         return;
     }
 
-    let err_str_ptr = gluErrorString(err_code);
-    let err_str = CStr::from_ptr(err_str_ptr as *const i8);
+    let err_str = unsafe {
+        let err_str_ptr = gluErrorString(err_code) as *const c_char;
+
+        CStr::from_ptr(err_str_ptr)
+    };
+
     let text = format!("[ui] glTexImage2D: {}", err_str.to_str().unwrap());
     console_write(&text, crate::console::ConsoleColor::Error);
 }
@@ -295,12 +300,6 @@ unsafe fn init_ui(dev_ptr: u32) {
     glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    let img = image::io::Reader::open("logo.png")
-        .unwrap()
-        .decode()
-        .unwrap();
-    let pixels = img.clone().into_rgba8();
-
     let dim = 250.0;
 
     let verts = vec![
@@ -326,30 +325,39 @@ unsafe fn init_ui(dev_ptr: u32) {
     gl::bind_buffer(gl::ARRAY_BUFFER, vbo);
     gl::buffer_data::<Vertex>(gl::ARRAY_BUFFER, &verts, gl::STATIC_DRAW);
 
-    glGenTextures(1, &mut UI_TEX);
-    glBindTexture(GL_TEXTURE_2D, UI_TEX);
+    UI_TEX = load_texture("logo.png");
 
-    let text = format!("[ui] generated texture: {}", UI_TEX);
+    wglMakeCurrent(UI_DC, old_context);
+}
+
+fn load_texture(path: &str) -> u32 {
+    let img = image::io::Reader::open(path).unwrap().decode().unwrap();
+    let pixels = img.clone().into_rgba8();
+
+    let tex_id = gl::gen_texture();
+    gl::bind_texture(gl::TEXTURE_2D, tex_id);
+
+    let text = format!("[ui] generated texture: {}", tex_id);
     console_write(&text, crate::console::ConsoleColor::Admin);
 
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST as i32);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR as i32);
+    gl::tex_parameter_i(gl::TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+    gl::tex_parameter_i(gl::TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
-    glTexImage2D(
-        GL_TEXTURE_2D,
+    gl::tex_image_2d(
+        gl::TEXTURE_2D,
         0,
-        GL_RGBA8 as i32,
-        img.width() as i32,
-        img.height() as i32,
+        GL_RGBA8,
+        img.width(),
+        img.height(),
         0,
         GL_RGBA,
         GL_UNSIGNED_BYTE,
-        pixels.as_ptr() as *const c_void,
+        pixels.as_ptr(),
     );
 
     gl_check_error();
 
-    wglMakeCurrent(UI_DC, old_context);
+    tex_id
 }
 
 unsafe fn draw_ui() {
@@ -420,7 +428,7 @@ unsafe extern "thiscall" fn sub_59BA10(dev_ptr: u32, a2: u32) -> u32 {
 
 //int __fastcall sub_435A50(int a1, char *windowTitle)
 #[detour_fn(0x00435A50)]
-unsafe extern "fastcall" fn sub_435A50(a1: u32, _windowTitle: *const c_char) -> u32 {
+extern "fastcall" fn sub_435A50(a1: u32, _windowTitle: *const c_char) -> u32 {
     let cfg = &CONFIG;
 
     let win_name = match &cfg.title {
@@ -430,10 +438,13 @@ unsafe extern "fastcall" fn sub_435A50(a1: u32, _windowTitle: *const c_char) -> 
 
     let win_name = CString::new(win_name).unwrap();
 
-    hook_sub_435A50.disable().unwrap();
-    let ret = hook_sub_435A50.call(a1, win_name.as_ptr());
-    hook_sub_435A50.enable().unwrap();
-    return ret;
+    unsafe {
+        hook_sub_435A50.disable().unwrap();
+        let ret = hook_sub_435A50.call(a1, win_name.as_ptr());
+        hook_sub_435A50.enable().unwrap();
+
+        return ret;
+    }
 }
 
 pub fn toggle() {
@@ -444,7 +455,6 @@ pub fn init() {
     unsafe {
         hook_sub_59BA10.enable().unwrap();
         hook_z_recreateOpenglWindow.enable().unwrap();
-
         hook_sub_435A50.enable().unwrap();
     }
 }
