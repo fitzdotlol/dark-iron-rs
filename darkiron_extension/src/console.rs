@@ -45,6 +45,9 @@ extern "fastcall" fn ConsoleCommandRegister(
 #[hook_fn(0x0063CB50)]
 extern "fastcall" fn ConsoleWriteRaw(text: *const c_char, color: ConsoleColor) {}
 
+#[hook_fn(0x006395A0)]
+extern "fastcall" fn ConsoleSetColor(color_type: ConsoleColor, _a2: u32, color: u32) {}
+
 // TODO: think of a clever way to wrap the handler so we can use rust types there
 // FIXME: WoW seems to expect static strings here. I'm sure there's a not-stupid solution,
 //        but you only register a command once, so we're just gonna leak memory here for now...
@@ -72,4 +75,6 @@ pub fn console_write(text: &str, color: ConsoleColor) {
 pub fn init() {
     // enable console
     unsafe { mem::set(0x00C4EC20, 1u32) };
+
+    ConsoleSetColor(ConsoleColor::Admin, 0, 0xFF00CCFF);
 }
