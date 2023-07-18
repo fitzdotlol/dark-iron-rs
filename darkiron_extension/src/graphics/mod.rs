@@ -4,7 +4,7 @@ use std::ffi::{c_char, c_void, CString};
 use once_cell::sync::Lazy;
 use windows::core::PCSTR;
 use windows::Win32::Foundation::{BOOL, HWND, LPARAM, WPARAM};
-use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateCompatibleBitmap, GetDC};
+use windows::Win32::Graphics::Gdi::{CreateBitmap, CreateCompatibleBitmap, GetDC, HDC};
 use windows::Win32::System::LibraryLoader::GetModuleHandleA;
 use windows::Win32::UI::WindowsAndMessaging::{
     CreateIconIndirect, CreateWindowExA, SendMessageA, CW_USEDEFAULT, HMENU, ICONINFO, ICON_BIG,
@@ -16,7 +16,6 @@ use darkiron_macro::detour_fn;
 
 use crate::config::CONFIG;
 use crate::math::{Matrix4, RectI};
-use crate::ui::UIState;
 
 pub mod gl;
 pub mod gx;
@@ -45,8 +44,14 @@ pub fn create_orthographic_projection(near: f32, far: f32) -> Matrix4 {
     projection
 }
 
-static mut UI: Lazy<UIState> = Lazy::new(|| {
-    UIState::new()
+#[derive(Default, Debug)]
+struct Device {
+    dc: HDC,
+    window: HWND
+}
+
+static mut UI: Lazy<Device> = Lazy::new(|| {
+    Device::default()
 });
 
 fn set_window_icon(hwnd: HWND) {
@@ -149,16 +154,6 @@ extern "fastcall" fn sub_435A50(a1: u32, _windowTitle: *const c_char) -> u32 {
 
         return ret;
     }
-}
-
-pub async fn add_rect_from_url(url: &str) -> Result<(), Box<dyn std::error::Error>> {
-    unsafe { UI.add_rect_from_url(url).await?; }
-
-    Ok(())
-}
-
-pub fn toggle_ui() {
-    unsafe { UI.enabled = !UI.enabled };
 }
 
 pub fn init() {

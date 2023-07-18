@@ -14,16 +14,16 @@ pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
     let hook_ident = format_ident!("hook_{}", func.sig.ident);
 
     // FIXME: support a default abi (extern "C")
-    // FIXME: add visibility
     let unsafety = func.sig.unsafety;
     let abi = func.sig.abi;
     let args = func.sig.inputs;
     let ret_type = func.sig.output;
+    let vis = func.vis;
 
     let expanded = quote! {
         type #def_ident = #unsafety #abi fn(#args) #ret_type;
 
-        static #hook_ident: once_cell::sync::Lazy<retour::GenericDetour<#def_ident>> = once_cell::sync::Lazy::new(|| unsafe {
+        #vis static #hook_ident: once_cell::sync::Lazy<retour::GenericDetour<#def_ident>> = once_cell::sync::Lazy::new(|| unsafe {
             retour::GenericDetour::new(
                 std::mem::transmute::<u32, #def_ident>(#addr),
                 #func_ident
@@ -39,8 +39,6 @@ pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
     TokenStream::from(expanded)
 }
 
-
-/// shiiiiiit
 /// # Usage
 ///
 /// ```
@@ -48,8 +46,7 @@ pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
 /// extern "fastcall" fn ConsoleWriteRaw(text: *const c_char, color: ConsoleColor) {}
 /// ```
 #[proc_macro_attribute]
-pub fn hook_fn(addr: TokenStream, def: TokenStream) -> TokenStream
-{
+pub fn hook_fn(addr: TokenStream, def: TokenStream) -> TokenStream {
     let addr = parse_macro_input!(addr as syn::LitInt);
     let def = parse_macro_input!(def as syn::ItemFn);
     let orig_def = def.clone();
@@ -57,13 +54,13 @@ pub fn hook_fn(addr: TokenStream, def: TokenStream) -> TokenStream
     let def_ident = format_ident!("def_{}", def.sig.ident);
 
     // FIXME: support a default abi (extern "C")
-    // FIXME: add visibility
     let unsafety = def.sig.unsafety;
     let abi = def.sig.abi;
     let args = def.sig.inputs;
     let ret_type = def.sig.output;
 
     let sig = orig_def.sig;
+    let vis = orig_def.vis;
 
     let value_iter = args.clone().into_iter();
 
@@ -81,7 +78,7 @@ pub fn hook_fn(addr: TokenStream, def: TokenStream) -> TokenStream
     let expanded = quote! {
         type #def_ident = #unsafety #abi fn(#args) #ret_type;
 
-        #sig {
+        #vis #sig {
             let func = unsafe { std::mem::transmute::<u32, #def_ident>(#addr) };
             func(#values)
         }

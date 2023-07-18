@@ -21,10 +21,8 @@ windows = { version = "0.48.0", features = [
 image = "0.24.6"
 toml = "0.7.6"
 serde = { version = "1.0.171", features = ["derive"] }
-discord-sdk = "0.3.4"
-tokio = { version = "1.29.1", features = ["macros"] }
-reqwest = "0.11.18"
-hex = "0.4.3"
+simplelog = "0.12.1"
+log = "0.4.19"
 
 [lib]
 name = "extension"

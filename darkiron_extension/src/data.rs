@@ -1,14 +1,10 @@
-use std::ffi::{c_char, CStr, CString};
+use std::{ffi::{c_char, CStr, CString}, collections::HashMap};
 
 use darkiron_macro::{detour_fn, hook_fn};
 use once_cell::sync::Lazy;
 
-use crate::{console::console_write, mem};
-
-// int __fastcall sub_4022C0(int a1)
-// {
-//   return sub_4022D0(*(&sp_archiveNames + a1));
-// }
+use crate::{console::console_write, fatal_error, mem, config::CONFIG};
+use log::info;
 
 static ARCHIVE_NAMES: Lazy<Vec<&str>> = Lazy::new(|| {
     vec![
@@ -21,15 +17,19 @@ static ARCHIVE_NAMES: Lazy<Vec<&str>> = Lazy::new(|| {
         "interface.MPQ",
         "fonts.MPQ",
         "speech.MPQ",
-        "test.MPQ",
+        "dbc.MPQ",
     ]
 });
 
-// #[hook_fn(0x00403B00)]
-// extern "fastcall" fn yy_maybeLoadMpq(archive_name: *const c_char, a2: u32, a3: u32) -> u32 {}
+static ARCHIVE_INDICES: Lazy<HashMap<&str, u32>> = Lazy::new(|| {
+    let mut j = 0;
 
-#[hook_fn(0x004022D0)]
-extern "fastcall" fn sub_4022D0(a1: *const c_char) -> u32 {}
+    HashMap::from_iter(ARCHIVE_NAMES.iter().map(|name| {
+        let pair = (*name, j);
+        j += 1;
+        pair
+    }))
+});
 
 #[detour_fn(0x004022C0)]
 extern "fastcall" fn sub_4022C0(archive_idx: u32) -> u32 {
@@ -38,77 +38,110 @@ extern "fastcall" fn sub_4022C0(archive_idx: u32) -> u32 {
     return sub_4022D0(name_cstring.as_ptr());
 }
 
-// #[detour_fn(0x004022D0)]
-// extern "fastcall" fn yy_maybeLoadMpq(archive_name: *const c_char, a2: u32, a3: u32) -> u32
-// {
-//     // dword_8826BC = archive list
+const DATA_PATHS: [&str; 2] = ["Data\\", "..\\Data\\"];
 
-//     let mut buf: Vec<u8> = Vec::new();
-//     buf.resize(260);
+fn get_mpq_path(datapath_idx: u32, archive_name: &str) -> String {
+    return format!("{}{}", DATA_PATHS[datapath_idx as usize], archive_name);
+}
 
-//     for i in 0..2 {
-//         sub_402320(buf.as_mut_ptr(), buf.len(), i, archive_name);
-//         let x = sub_648DD0(buf.as_ptr(), a2, 0, dword_8826BC + 4 * a3);
+//int __stdcall sub_648DD0(char *RootPathName, int a2, int a3, int a4)
+#[hook_fn(0x00648DD0)]
+extern "system" fn sub_648DD0(a1: *const c_char, a2: u32, a3: u32, a4: u32) -> u32 {}
 
-//         if x != 0 {
-//             return 1;
-//         }
+// sub_64DF50
+fn get_error_code() -> u32 {
+    unsafe { *mem::ptr(0x00C53D40) }
+}
 
-//         // let err = sub_64DF50();
+#[detour_fn(0x00403B00)]
+extern "fastcall" fn yy_maybeLoadMpq(archive_name: *const c_char, a2: u32, a3: u32) -> u32 {
+    let custom_archives = &CONFIG.archives;
 
-//         // s_lastErrCode
-//         let err: u32 = unsafe { *mem::ptr(0x00C53D40) };
+    let mpq = unsafe { CStr::from_ptr(archive_name) };
+    let old_name = mpq.to_str().unwrap();
+    let mpq_str = match old_name {
+        str => {
+            if !ARCHIVE_INDICES.contains_key(str) {
+                return 2;
+            }
 
-//         if err == 38 {
-//             err = 0x85100083;
-//         }
+            let idx = ARCHIVE_INDICES.get(str).unwrap();
+            let a = custom_archives.get(*idx as usize);
+            if a.is_none() {
+                return 2;
+            }
 
-//         if (err == 0x8510006C || err == 0x85100083) {
-//             SErrDisplayAppFatal(err, "Failed to open archive %s", buf);
-//         }
-//     }
+            a.unwrap().as_str()
+        }
+    };
 
-//     return 0;
-// }
+    info!("[mpq] loaded base archive {mpq_str}");
 
-// #[detour_fn(0x004022D0)]
-// extern "thiscall" fn sub_4022D0(archive_name: *const c_char) -> u32 {
-//     let mut buf: Vec<u8> = Vec::new();
-//     buf.resize(260, 0);
+    // dword_8826BC = archive list
+    let archive_list_ptr = unsafe { *mem::ptr::<u32>(0x008826BC) };
 
+    for i in 0..2 {
+        let path = get_mpq_path(i, mpq_str);
+        let path_cstring = CString::new(path).unwrap();
+        let x = sub_648DD0(path_cstring.as_ptr(), a2, 0, archive_list_ptr + 4 * a3);
 
-//     for i in 0..2 {
-//         sub_402320(buf.as_ptr(), buf.len(), i, archive_name);
+        if x != 0 {
+            return 1;
+        }
 
-//         if sub_42A4E0(buf.as_ptr()) {
-//             break;
-//         }
-//     }
+        let mut err = get_error_code();
 
-//     return 2;
-// }
+        if err == 38 {
+            err = 0x85100083;
+        }
 
-
-pub fn init() {
-    let mut mpq_names: Vec<u32> = Vec::new();
-    mpq_names.resize(10, 0);
-
-    //sp_archiveNames =
-
-    unsafe {
-        let mpq_names_ptr = mem::ptr::<u32>(0x0082E12C);
-        std::ptr::copy_nonoverlapping(mpq_names_ptr, mpq_names.as_mut_ptr(), 10);
-
-        for i in 0..10 {
-            // let text = format!("{i}, {}", mpq_names[i]);
-            let name = mem::ptr::<c_char>(mpq_names[i]);
-            let name_cstr = CStr::from_ptr(name);
-            let text = format!("{i}: {:?}", name_cstr.to_str().unwrap());
-            console_write(&text, crate::console::ConsoleColor::Warning);
+        if err == 0x8510006C || err == 0x85100083 {
+            let text = format!("Failed to open archive: {mpq_str}");
+            fatal_error(&text, err);
         }
     }
 
+    return 0;
+}
+
+
+#[hook_fn(0x0042A4E0)]
+extern "thiscall" fn sub_42A4E0(a1: *const c_char) -> u32 {}
+
+#[detour_fn(0x004022D0)]
+extern "thiscall" fn sub_4022D0(archive_name: *const c_char) -> u32 {
+    let mpq = unsafe { CStr::from_ptr(archive_name) };
+    let mpq_str = mpq.to_str().unwrap();
+
+    for i in 0..2 {
+        let path = get_mpq_path(i, mpq_str);
+        let path_cstring = CString::new(path).unwrap();
+
+        if sub_42A4E0(path_cstring.as_ptr()) != 0 {
+            break;
+        }
+    }
+
+    return 2;
+}
+
+pub fn init() {
+    // let mut mpq_names: Vec<u32> = Vec::new();
+    // mpq_names.resize(10, 0);
+
+    // unsafe {
+    //     let mpq_names_ptr = mem::ptr::<u32>(0x0082E12C);
+    //     std::ptr::copy_nonoverlapping(mpq_names_ptr, mpq_names.as_mut_ptr(), 10);
+
+    //     for i in 0..10 {
+    //         let name = mem::ptr::<c_char>(mpq_names[i]);
+    //         let name_cstr = CStr::from_ptr(name);
+    //         info!("{i}: {:?}", name_cstr.to_str().unwrap());
+    //     }
+    // }
+
     unsafe {
         hook_sub_4022C0.enable().unwrap();
+        hook_yy_maybeLoadMpq.enable().unwrap();
     }
 }
