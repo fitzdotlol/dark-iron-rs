@@ -1,13 +1,13 @@
 extern crate proc_macro;
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
-use syn::parse_macro_input;
+use syn::{parse_macro_input, parse_quote};
 
 #[proc_macro_attribute]
 pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
     let addr = parse_macro_input!(addr as syn::LitInt);
     let func = parse_macro_input!(func as syn::ItemFn);
-    let orig_fn = func.clone();
+    let mut orig_fn = func.clone();
 
     let func_ident = format_ident!("{}", func.sig.ident);
     let def_ident = format_ident!("def_{}", func.sig.ident);
@@ -19,6 +19,20 @@ pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
     let args = func.sig.inputs;
     let ret_type = func.sig.output;
     let vis = func.vis;
+
+    orig_fn.block.stmts.insert(0, parse_quote! {
+        #[allow(unused_macros)] 
+        macro_rules! original {
+            ($($args:expr),* $(,)?) => {
+                unsafe {
+                    (#hook_ident).disable().unwrap();
+                    let ret = (#hook_ident).call($($args),*);
+                    (#hook_ident).enable().unwrap();
+                    ret
+                }
+            };
+        }
+    });
 
     let expanded = quote! {
         type #def_ident = #unsafety #abi fn(#args) #ret_type;

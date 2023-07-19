@@ -83,11 +83,13 @@ fn init_extension() {
 }
 
 #[detour_fn(0x0046B840)]
-unsafe extern "thiscall" fn sub_46B840(a1: u32) {
+extern "thiscall" fn sub_46B840(a1: u32) {
     init_extension();
 
-    hook_sub_46B840.disable().unwrap();
-    hook_sub_46B840.call(a1);
+    unsafe {
+        hook_sub_46B840.disable().unwrap();
+        hook_sub_46B840.call(a1);
+    }
 }
 
 // char __fastcall sub_46A580(int a1, char *a2, unsigned int a3, char a4, int a5)
@@ -127,7 +129,7 @@ fn early_init() {
         vec![
             WriteLogger::new(LevelFilter::Info, LogConfig::default(), File::create("Logs/darkiron.log").unwrap()),
             console::ConsoleLogger::new(LevelFilter::Info, LogConfig::default()),
-            ]
+        ]
     ).unwrap();
         
     graphics::init();

@@ -6,11 +6,7 @@ use darkiron_macro::detour_fn;
 #[detour_fn(0x00704120)]
 pub extern "fastcall" fn FrameScript__Register(name: *const c_char, func: *const c_void)
 {
-    unsafe {
-        hook_FrameScript__Register.disable().unwrap();
-        hook_FrameScript__Register.call(name, func);
-        hook_FrameScript__Register.enable().unwrap();
-    }
+    original!(name, func);
 }
 
 pub fn init() {

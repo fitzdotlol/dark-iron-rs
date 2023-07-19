@@ -125,14 +125,10 @@ unsafe extern "fastcall" fn z_recreateOpenglWindow(
 }
 
 #[detour_fn(0x0059BA10)]
-unsafe extern "thiscall" fn sub_59BA10(dev_ptr: u32, a2: u32) -> u32 {
+extern "thiscall" fn sub_59BA10(dev_ptr: u32, a2: u32) -> u32 {
     // _ = UI.draw();
 
-    hook_sub_59BA10.disable().unwrap();
-    let ret_val = hook_sub_59BA10.call(dev_ptr, a2);
-    hook_sub_59BA10.enable().unwrap();
-
-    ret_val
+    original!(dev_ptr, a2)
 }
 
 //int __fastcall sub_435A50(int a1, char *windowTitle)
@@ -147,13 +143,7 @@ extern "fastcall" fn sub_435A50(a1: u32, old_title: *const c_char) -> u32 {
         title = title_str.as_ptr() as *const c_char;
     }
 
-    unsafe {
-        hook_sub_435A50.disable().unwrap();
-        let ret = hook_sub_435A50.call(a1, title);
-        hook_sub_435A50.enable().unwrap();
-
-        return ret;
-    }
+    original!(a1, title)
 }
 
 pub fn init() {
