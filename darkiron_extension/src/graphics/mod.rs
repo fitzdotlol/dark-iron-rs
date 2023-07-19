@@ -19,8 +19,8 @@ use crate::math::{Matrix4, RectI};
 
 pub mod gl;
 pub mod gx;
-pub mod texture;
 pub mod primitive;
+pub mod texture;
 
 pub fn create_orthographic_projection(near: f32, far: f32) -> Matrix4 {
     let mut projection = Matrix4 { m: [[0.0; 4]; 4] };
@@ -47,19 +47,19 @@ pub fn create_orthographic_projection(near: f32, far: f32) -> Matrix4 {
 #[derive(Default, Debug)]
 struct Device {
     dc: HDC,
-    window: HWND
+    window: HWND,
 }
 
-static mut UI: Lazy<Device> = Lazy::new(|| {
-    Device::default()
-});
+static mut UI: Lazy<Device> = Lazy::new(|| Device::default());
 
 fn set_window_icon(hwnd: HWND) {
-    if CONFIG.icon.is_none() {
+    let cfg = &CONFIG.window;
+
+    if cfg.icon.is_none() {
         return;
     }
 
-    let icon_path = CONFIG.icon.as_ref().unwrap();
+    let icon_path = cfg.icon.as_ref().unwrap();
 
     let img = image::io::Reader::open(icon_path)
         .unwrap()
@@ -137,19 +137,19 @@ unsafe extern "thiscall" fn sub_59BA10(dev_ptr: u32, a2: u32) -> u32 {
 
 //int __fastcall sub_435A50(int a1, char *windowTitle)
 #[detour_fn(0x00435A50)]
-extern "fastcall" fn sub_435A50(a1: u32, _windowTitle: *const c_char) -> u32 {
-    let cfg = &CONFIG;
+extern "fastcall" fn sub_435A50(a1: u32, old_title: *const c_char) -> u32 {
+    let mut title = old_title;
+    let title_str: CString;
 
-    let win_name = match &cfg.title {
-        Some(s) => s.as_str(),
-        None => "World of Warcraft",
-    };
-
-    let win_name = CString::new(win_name).unwrap();
+    if CONFIG.window.title.is_some() {
+        let s = CONFIG.window.title.as_ref().unwrap().clone();
+        title_str = CString::new(s).unwrap();
+        title = title_str.as_ptr() as *const c_char;
+    }
 
     unsafe {
         hook_sub_435A50.disable().unwrap();
-        let ret = hook_sub_435A50.call(a1, win_name.as_ptr());
+        let ret = hook_sub_435A50.call(a1, title);
         hook_sub_435A50.enable().unwrap();
 
         return ret;

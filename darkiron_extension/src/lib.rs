@@ -1,7 +1,9 @@
 #![feature(abi_thiscall, slice_flatten, fn_traits, c_variadic)]
 #![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
 
-use simplelog::*;
+// use simplelog::*;
+use log::{warn, info, error, LevelFilter};
+use simplelog::{CombinedLogger, WriteLogger, Config as LogConfig};
 
 mod config;
 mod console;
@@ -10,7 +12,7 @@ mod graphics;
 mod math;
 mod script;
 
-use std::{ffi::{c_char, c_void, CString}, panic, fs::File};
+use std::{ffi::{c_char, c_void, CString}, panic, fs::File, thread};
 
 use config::CONFIG;
 
@@ -21,6 +23,8 @@ use windows::Win32::{
 };
 
 use darkiron_macro::{detour_fn, hook_fn};
+
+use crate::console::CommandCategory;
 
 pub mod mem {
     pub unsafe fn ptr<T>(addr: u32) -> *mut T {
@@ -33,6 +37,13 @@ pub mod mem {
 }
 #[hook_fn(0x0064CF80)]
 unsafe extern "C" fn SErrDisplayAppFatal(err: u32, fmt: *const c_char, ...) {}
+
+extern "fastcall" fn cmd_test(_cmd: *const c_char, _args: *const c_char) -> u32 {
+    info!("info test");
+    warn!("warn");
+    error!("error");
+    return 0;
+}
 
 extern "fastcall" fn cmd_err(_cmd: *const c_char, _args: *const c_char) -> u32 {
     match panic::catch_unwind(|| {
@@ -52,6 +63,7 @@ extern "fastcall" fn cmd_err(_cmd: *const c_char, _args: *const c_char) -> u32 {
 pub fn fatal_error(text: &str, code: u32) {
     let fmt = CString::new(text).unwrap();
     unsafe { SErrDisplayAppFatal(code, fmt.as_ptr()); }
+    panic!();
 }
 
 fn init_extension() {
@@ -64,8 +76,10 @@ fn init_extension() {
     console::init();
     script::init();
 
-    console_write("Dark Iron extension loaded!", console::ConsoleColor::Admin);
-    console::console_command_register("err", cmd_err, console::CommandCategory::Debug, None);
+    info!("Dark Iron extension loaded!");
+
+    console::register_command("test", cmd_test, CommandCategory::Debug, None);
+    console::register_command("err", cmd_err, CommandCategory::Debug, None);
 }
 
 #[detour_fn(0x0046B840)]
@@ -94,11 +108,13 @@ unsafe extern "fastcall" fn httpGetRequest(
     callback: HTTPCallback,
     a3: u32,
 ) -> u32 {
-    if CONFIG.server_alert_url.is_none() {
+    let win_cfg = &CONFIG.window;
+
+    if win_cfg.server_alert_url.is_none() {
         return 0;
     }
 
-    let url = CONFIG.server_alert_url.as_ref().unwrap();
+    let url = win_cfg.server_alert_url.as_ref().unwrap();
     let url_cstring = CString::new(url.as_str()).unwrap();
 
     return sub_7A6CC0(url_cstring.as_ptr(), callback, a3, 5000);
@@ -106,22 +122,27 @@ unsafe extern "fastcall" fn httpGetRequest(
 
 static mut ExtensionLoaded: bool = false;
 
+fn early_init() {
+    CombinedLogger::init(
+        vec![
+            WriteLogger::new(LevelFilter::Info, LogConfig::default(), File::create("Logs/darkiron.log").unwrap()),
+            console::ConsoleLogger::new(LevelFilter::Info, LogConfig::default()),
+            ]
+    ).unwrap();
+        
+    graphics::init();
+    data::init();
+    
+    unsafe {
+        hook_sub_46B840.enable().unwrap();
+        hook_httpGetRequest.enable().unwrap();
+    }
+}
+
 #[no_mangle]
 unsafe extern "system" fn DllMain(_hinst: HANDLE, reason: u32, _reserved: *mut c_void) -> BOOL {
     if reason == DLL_PROCESS_ATTACH && !ExtensionLoaded {
-        CombinedLogger::init(
-            vec![
-                TermLogger::new(LevelFilter::Warn, Config::default(), TerminalMode::Mixed, ColorChoice::Auto),
-                WriteLogger::new(LevelFilter::Info, Config::default(), File::create("Logs/darkiron.log").unwrap()),
-            ]
-        ).unwrap();
-    
-
-        graphics::init();
-        data::init();
-
-        hook_sub_46B840.enable().unwrap();
-        hook_httpGetRequest.enable().unwrap();
+        thread::spawn(early_init);
         ExtensionLoaded = true;
     }
 

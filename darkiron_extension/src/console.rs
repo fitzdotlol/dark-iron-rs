@@ -1,8 +1,10 @@
 #![allow(dead_code)]
 
-use std::ffi::{c_char, CString};
 use crate::mem;
 use darkiron_macro::hook_fn;
+use simplelog::Config as LogConfig;
+use simplelog::{Level, LevelFilter, SharedLogger};
+use std::ffi::{c_char, CString};
 
 #[repr(u32)]
 pub enum CommandCategory {
@@ -33,6 +35,59 @@ pub enum ConsoleColor {
 pub type ConsoleCommandHandler =
     extern "fastcall" fn(cmd: *const c_char, args: *const c_char) -> u32;
 
+pub struct ConsoleLogger {
+    level: LevelFilter,
+    config: LogConfig,
+}
+
+impl ConsoleLogger {
+    pub fn new(log_level: LevelFilter, config: LogConfig) -> Box<Self> {
+        Box::new(Self {
+            level: log_level,
+            config,
+        })
+    }
+}
+
+impl log::Log for ConsoleLogger {
+    fn enabled(&self, metadata: &log::Metadata<'_>) -> bool {
+        metadata.level() <= self.level
+    }
+
+    fn log(&self, record: &log::Record<'_>) {
+        if self.enabled(record.metadata()) {
+            let color = match record.level() {
+                Level::Info => ConsoleColor::Admin,
+                Level::Warn => ConsoleColor::Warning,
+                Level::Error => ConsoleColor::Error,
+
+                _ => ConsoleColor::Default,
+            };
+
+            // try_log(&self.config, record, ddd);
+
+            let text = format!("{}", record.args());
+            console_write(&text, color);
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+impl SharedLogger for ConsoleLogger {
+    fn level(&self) -> LevelFilter {
+        self.level
+    }
+
+    fn config(&self) -> Option<&LogConfig> {
+        Some(&self.config)
+    }
+
+    fn as_log(self: Box<Self>) -> Box<dyn log::Log> {
+        Box::new(*self)
+    }
+}
+
 #[hook_fn(0x0063F9E0)]
 extern "fastcall" fn ConsoleCommandRegister(
     cmd: *const c_char,
@@ -51,7 +106,7 @@ extern "fastcall" fn ConsoleSetColor(color_type: ConsoleColor, _a2: u32, color: 
 // TODO: think of a clever way to wrap the handler so we can use rust types there
 // FIXME: WoW seems to expect static strings here. I'm sure there's a not-stupid solution,
 //        but you only register a command once, so we're just gonna leak memory here for now...
-pub fn console_command_register(
+pub fn register_command(
     cmd: &str,
     handler: ConsoleCommandHandler,
     category: CommandCategory,

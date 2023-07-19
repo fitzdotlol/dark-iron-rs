@@ -1,13 +1,26 @@
+use std::path::PathBuf;
+
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use toml;
 
-use crate::console::console_write;
+use crate::{console::console_write, data};
+
+
+fn default_base_archives() -> Vec<String> {
+    Vec::from_iter(
+        data::BASE_ARCHIVE_NAMES.iter().map(|s| {
+            String::from(*s)
+        })
+    )
+}
+
+//
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DebugConfig {
-    verify_framexml: bool,
-    verify_gluexml: bool,
+    pub verify_framexml: bool,
+    pub verify_gluexml: bool,
 }
 
 impl Default for DebugConfig {
@@ -19,28 +32,62 @@ impl Default for DebugConfig {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Config {
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct WindowConfig {
     pub title: Option<String>,
     pub icon: Option<String>,
     pub server_alert_url: Option<String>,
-    pub archives: Vec<String>,
+}
+
+//
+
+fn default_path() -> String {
+    String::from("Data\\")
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct DataConfig {
+    #[serde(default = "default_path")]
+    pub path: String,
+    #[serde(default = "default_base_archives")]
+    pub base_archives: Vec<String>,
+    pub patches: Option<Vec<String>>,
+}
+
+// impl Default for DataConfig {
+//     fn default() -> Self {
+//         Self {
+//             path: None,
+//             base_archives: None,//Some(get_default_base_archives()),
+//             patches: None,
+//         }
+//     }
+// }
+
+//
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct Config {
+    #[serde(default)]
+    pub window: WindowConfig,
+    #[serde(default)]
+    pub data: DataConfig,
+    #[serde(default)]
     pub debug: DebugConfig,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            title: None,
-            icon: None,
-            server_alert_url: None,
-            archives: vec![
-                String::from("vanilla.MPQ"),
-                String::from("vanilla-2.MPQ"),
-                String::from("vanilla-3.MPQ"),
-            ],
+impl Config {
+    fn from_path(path: &PathBuf) -> Self {
+        let config_str = std::fs::read_to_string(path).unwrap();
 
-            debug: DebugConfig::default(),
+        match toml::from_str(config_str.as_str()) {
+            Ok(config) => config,
+            Err(e) => {
+                let err_string = format!("[config] failed to read {CONFIG_FILENAME}: {e}");
+                console_write(&err_string, crate::console::ConsoleColor::Error);
+
+                Config::default()
+            }
         }
     }
 }
@@ -52,17 +99,7 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     let config_path = game_path.join(CONFIG_FILENAME);
 
     if config_path.exists() {
-        let config_str = std::fs::read_to_string(config_path).unwrap();
-
-        return match toml::from_str(config_str.as_str()) {
-            Ok(config) => config,
-            Err(e) => {
-                let err_string = format!("[config] failed to read {CONFIG_FILENAME}: {e}");
-                console_write(&err_string, crate::console::ConsoleColor::Error);
-
-                Config::default()
-            }
-        };
+        return Config::from_path(&config_path);
     }
 
     let text = format!("[config] generating {CONFIG_FILENAME} with defaults");
