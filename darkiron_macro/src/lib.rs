@@ -3,25 +3,21 @@ use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{parse_macro_input, parse_quote};
 
-#[proc_macro_attribute]
-pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
-    let addr = parse_macro_input!(addr as syn::LitInt);
-    let func = parse_macro_input!(func as syn::ItemFn);
-    let mut orig_fn = func.clone();
+#[proc_macro]
+pub fn enable_detour(name: TokenStream) -> TokenStream {
+    let ident = parse_macro_input!(name as syn::Ident);
+    let ident = format_ident!("hook_{ident}");
 
-    let func_ident = format_ident!("{}", func.sig.ident);
-    let def_ident = format_ident!("def_{}", func.sig.ident);
-    let hook_ident = format_ident!("hook_{}", func.sig.ident);
+    let expanded = quote! {
+        unsafe { #ident.enable().unwrap() }
+    };
 
-    // FIXME: support a default abi (extern "C")
-    let unsafety = func.sig.unsafety;
-    let abi = func.sig.abi;
-    let args = func.sig.inputs;
-    let ret_type = func.sig.output;
-    let vis = func.vis;
+    TokenStream::from(expanded)
+}
 
-    orig_fn.block.stmts.insert(0, parse_quote! {
-        #[allow(unused_macros)] 
+fn make_original_fn_macro(hook_ident: &syn::Ident) -> syn::Stmt {
+    parse_quote! {
+        #[allow(unused_macros)]
         macro_rules! original {
             ($($args:expr),* $(,)?) => {
                 unsafe {
@@ -32,7 +28,27 @@ pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
                 }
             };
         }
-    });
+    }
+}
+
+#[proc_macro_attribute]
+pub fn detour_fn(addr: TokenStream, func: TokenStream) -> TokenStream {
+    let addr = parse_macro_input!(addr as syn::LitInt);
+    let func = parse_macro_input!(func as syn::ItemFn);
+    let mut orig_fn = func.clone();
+
+    let func_ident = format_ident!("{}", func.sig.ident);
+    let def_ident = format_ident!("def_{}", func.sig.ident);
+    let hook_ident = format_ident!("hook_{}", func.sig.ident);
+
+    orig_fn.block.stmts.insert(0, make_original_fn_macro(&hook_ident));
+
+    // FIXME: support a default abi (extern "C")
+    let unsafety = func.sig.unsafety;
+    let abi = func.sig.abi;
+    let args = func.sig.inputs;
+    let ret_type = func.sig.output;
+    let vis = func.vis;
 
     let expanded = quote! {
         type #def_ident = #unsafety #abi fn(#args) #ret_type;

@@ -12,7 +12,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     WS_MINIMIZEBOX, WS_OVERLAPPED, WS_SYSMENU, WS_THICKFRAME,
 };
 
-use darkiron_macro::detour_fn;
+use darkiron_macro::{detour_fn, enable_detour};
 
 use crate::config::CONFIG;
 use crate::math::{Matrix4, RectI};
@@ -155,9 +155,9 @@ pub fn init() {
         let dst_2 = crate::mem::ptr::<u8>(0x00864F7C);
         std::ptr::copy(src.as_ptr() as *mut u8, dst_1, src.len());
         std::ptr::copy(src.as_ptr() as *mut u8, dst_2, src.len());
-
-        hook_sub_59BA10.enable().unwrap();
-        hook_z_recreateOpenglWindow.enable().unwrap();
-        hook_sub_435A50.enable().unwrap();
     }
+
+    enable_detour!(sub_59BA10);
+    enable_detour!(z_recreateOpenglWindow);
+    enable_detour!(sub_435A50);
 }

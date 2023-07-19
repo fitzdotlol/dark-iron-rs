@@ -1,5 +1,5 @@
 #![feature(abi_thiscall, slice_flatten, fn_traits, c_variadic)]
-#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types)]
+#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types, dead_code)]
 
 // use simplelog::*;
 use log::{warn, info, error, LevelFilter};
@@ -12,7 +12,7 @@ mod graphics;
 mod math;
 mod script;
 
-use std::{ffi::{c_char, c_void, CString}, panic, fs::File, thread};
+use std::{ffi::{c_char, c_void, CString, CStr}, panic, fs::File, thread};
 
 use config::CONFIG;
 
@@ -22,7 +22,7 @@ use windows::Win32::{
     System::SystemServices::DLL_PROCESS_ATTACH,
 };
 
-use darkiron_macro::{detour_fn, hook_fn};
+use darkiron_macro::{detour_fn, hook_fn, enable_detour};
 
 use crate::console::CommandCategory;
 
@@ -122,6 +122,27 @@ unsafe extern "fastcall" fn httpGetRequest(
     return sub_7A6CC0(url_cstring.as_ptr(), callback, a3, 5000);
 }
 
+#[derive(Debug)]
+#[repr(u32)]
+enum UISignatureResponse {
+    Missing = 0,
+    Corrupt = 1,
+    Modified = 2,
+    Ok = 3,
+    Test = 5,
+}
+
+#[detour_fn(0x006F10F0)]
+extern "thiscall" fn sub_6F10F0(filename: *const c_char, a2: u32, a3: u32) -> UISignatureResponse {
+    let old = original!(filename, a2, a3);
+
+    let filename = unsafe { CStr::from_ptr(filename) };
+    let filename = filename.to_str().unwrap();
+
+    info!("checking signature for {}. expected {:?}", filename, old);
+    UISignatureResponse::Ok
+}
+
 static mut ExtensionLoaded: bool = false;
 
 fn early_init() {
@@ -135,10 +156,9 @@ fn early_init() {
     graphics::init();
     data::init();
     
-    unsafe {
-        hook_sub_46B840.enable().unwrap();
-        hook_httpGetRequest.enable().unwrap();
-    }
+    enable_detour!(sub_46B840);
+    enable_detour!(httpGetRequest);
+    enable_detour!(sub_6F10F0);
 }
 
 #[no_mangle]

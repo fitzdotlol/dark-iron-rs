@@ -1,9 +1,9 @@
 use std::{
     collections::HashMap,
-    ffi::{c_char, CStr, CString},
+    ffi::{c_char, CStr, CString, c_void},
 };
 
-use darkiron_macro::{detour_fn, hook_fn};
+use darkiron_macro::{detour_fn, hook_fn, enable_detour};
 use once_cell::sync::Lazy;
 
 use crate::{config::CONFIG, fatal_error, mem};
@@ -171,7 +171,7 @@ struct Thingy {
     field_28: u32,
     field_2C: u32,
     callback: u32,
-    zero: u32,
+    field_34: *const c_void,
     field_38: u32,
     field_3C: u32,
 }
@@ -188,12 +188,10 @@ extern "fastcall" fn yy_maybeLoadPatch(a1: *const OsFileData, a2: *const Thingy)
 }
 
 pub fn init() {
-    unsafe {
-        hook_sub_4022C0.enable().unwrap();
-        hook_yy_maybeLoadMpq.enable().unwrap();
-        hook_yy_maybeLoadPatch.enable().unwrap();
+    enable_detour!(sub_4022C0);
+    enable_detour!(yy_maybeLoadMpq);
+    enable_detour!(yy_maybeLoadPatch);
 
-        // fix null base mpq deref
-        hook_sub_648FB0.enable().unwrap();
-    }
+    // fix null base mpq deref
+    enable_detour!(sub_648FB0);
 }
