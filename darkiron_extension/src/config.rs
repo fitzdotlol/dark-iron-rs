@@ -17,20 +17,18 @@ fn default_base_archives() -> Vec<String> {
 
 //
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct DebugConfig {
-    pub verify_framexml: bool,
-    pub verify_gluexml: bool,
-}
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// pub struct DebugConfig {
+//     pub validate_interface: bool,
+// }
 
-impl Default for DebugConfig {
-    fn default() -> Self {
-        Self {
-            verify_framexml: true,
-            verify_gluexml: true,
-        }
-    }
-}
+// impl Default for DebugConfig {
+//     fn default() -> Self {
+//         Self {
+//             validate_interface: true,
+//         }
+//     }
+// }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct WindowConfig {
@@ -52,6 +50,8 @@ pub struct DataConfig {
     #[serde(default = "default_base_archives")]
     pub base_archives: Vec<String>,
     pub patches: Option<Vec<String>>,
+    #[serde(default)]
+    pub validate_interface: bool,
 }
 
 // impl Default for DataConfig {
@@ -72,8 +72,9 @@ pub struct Config {
     pub window: WindowConfig,
     #[serde(default)]
     pub data: DataConfig,
-    #[serde(default)]
-    pub debug: DebugConfig,
+
+    // #[serde(default)]
+    // pub debug: DebugConfig,
 }
 
 impl Config {

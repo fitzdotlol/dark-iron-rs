@@ -1,9 +1,14 @@
 #![feature(abi_thiscall, slice_flatten, fn_traits, c_variadic)]
-#![allow(non_upper_case_globals, non_snake_case, non_camel_case_types, dead_code)]
+#![allow(
+    non_upper_case_globals,
+    non_snake_case,
+    non_camel_case_types,
+    dead_code
+)]
 
 // use simplelog::*;
-use log::{warn, info, error, LevelFilter};
-use simplelog::{CombinedLogger, WriteLogger, Config as LogConfig};
+use log::{error, info, warn, LevelFilter};
+use simplelog::{CombinedLogger, Config as LogConfig, WriteLogger};
 
 mod config;
 mod console;
@@ -12,7 +17,11 @@ mod graphics;
 mod math;
 mod script;
 
-use std::{ffi::{c_char, c_void, CString, CStr}, panic, fs::File, thread};
+use std::{
+    ffi::{c_char, c_void, CString},
+    fs::File,
+    panic, thread,
+};
 
 use config::CONFIG;
 
@@ -22,7 +31,7 @@ use windows::Win32::{
     System::SystemServices::DLL_PROCESS_ATTACH,
 };
 
-use darkiron_macro::{detour_fn, hook_fn, enable_detour};
+use darkiron_macro::{detour_fn, enable_detour, hook_fn};
 
 use crate::console::CommandCategory;
 
@@ -51,10 +60,7 @@ extern "fastcall" fn cmd_err(_cmd: *const c_char, _args: *const c_char) -> u32 {
         panic!("oh no!");
     }) {
         Ok(_) => (),
-        Err(e) => {
-            fatal_error(format!("{e:?}").as_str(), 0x69420)
-
-        }
+        Err(e) => fatal_error(format!("{e:?}").as_str(), 0x69420),
     }
 
     return 0;
@@ -62,7 +68,9 @@ extern "fastcall" fn cmd_err(_cmd: *const c_char, _args: *const c_char) -> u32 {
 
 pub fn fatal_error(text: &str, code: u32) {
     let fmt = CString::new(text).unwrap();
-    unsafe { SErrDisplayAppFatal(code, fmt.as_ptr()); }
+    unsafe {
+        SErrDisplayAppFatal(code, fmt.as_ptr());
+    }
     panic!();
 }
 
@@ -129,33 +137,35 @@ enum UISignatureResponse {
     Corrupt = 1,
     Modified = 2,
     Ok = 3,
-    Test = 5,
 }
 
 #[detour_fn(0x006F10F0)]
 extern "thiscall" fn sub_6F10F0(filename: *const c_char, a2: u32, a3: u32) -> UISignatureResponse {
-    let old = original!(filename, a2, a3);
+    let res = original!(filename, a2, a3);
 
-    let filename = unsafe { CStr::from_ptr(filename) };
-    let filename = filename.to_str().unwrap();
+    if CONFIG.data.validate_interface {
+        return res;
+    }
 
-    info!("checking signature for {}. expected {:?}", filename, old);
     UISignatureResponse::Ok
 }
 
 static mut ExtensionLoaded: bool = false;
 
 fn early_init() {
-    CombinedLogger::init(
-        vec![
-            WriteLogger::new(LevelFilter::Info, LogConfig::default(), File::create("Logs/darkiron.log").unwrap()),
-            console::ConsoleLogger::new(LevelFilter::Info, LogConfig::default()),
-        ]
-    ).unwrap();
-        
+    CombinedLogger::init(vec![
+        WriteLogger::new(
+            LevelFilter::Info,
+            LogConfig::default(),
+            File::create("Logs/darkiron.log").unwrap(),
+        ),
+        console::ConsoleLogger::new(LevelFilter::Info, LogConfig::default()),
+    ])
+    .unwrap();
+
     graphics::init();
     data::init();
-    
+
     enable_detour!(sub_46B840);
     enable_detour!(httpGetRequest);
     enable_detour!(sub_6F10F0);
